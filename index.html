@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TextCard Pro - 精美长文排版引擎</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap');
+        
+        :root {
+            --card-bg: #ffffff;
+            --card-text: #1a1a1a;
+            --card-accent: #3b82f6;
+        }
+
+        body { 
+            background-color: #050505; 
+            color: #ffffff; 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        /* Markdown Styling inside Card */
+        .md-content { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+        .md-content h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 1.2rem; border-bottom: 3px solid var(--card-accent); padding-bottom: 0.5rem; letter-spacing: -0.02em; color: inherit; }
+        .md-content h2 { font-size: 1.6rem; font-weight: 700; margin-top: 1.8rem; margin-bottom: 1rem; color: var(--card-accent); letter-spacing: -0.01em; }
+        .md-content p { margin-bottom: 1.2rem; line-height: 1.8; font-weight: 450; letter-spacing: 0.01em; color: inherit; }
+        .md-content blockquote { border-left: 5px solid var(--card-accent); padding: 1.2rem; color: var(--card-text-dim, #444); font-style: italic; margin: 1.8rem 0; background: var(--card-quote-bg, rgba(0,0,0,0.025)); border-radius: 0 0.75rem 0.75rem 0; }
+        .md-content strong { font-weight: 800; color: inherit; }
+        .md-content code { background: var(--card-code-bg, rgba(0,0,0,0.06)); padding: 0.2rem 0.45rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.88em; color: var(--card-code-text, #d63384); }
+
+        /* Template Specific Overrides */
+        .template-elegant-style .md-content { color: #ffffff !important; }
+        .template-elegant-style .md-content blockquote { color: #b0b0b0 !important; background: rgba(255,255,255,0.05) !important; }
+        .template-elegant-style .md-content code { color: #d4af37 !important; background: rgba(212, 175, 55, 0.1) !important; }
+        .template-elegant-style .md-content h1 { color: #ffffff !important; }
+        .template-elegant-style .md-content p { color: #ffffff !important; }
+        .md-content ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .md-content pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 0.75rem; overflow-x: auto; margin-bottom: 1.5rem; }
+        
+        .glass-panel { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); }
+        .template-card { cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .template-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.4); }
+        .template-card.active { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+        /* Animation */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+    </style>
+</head>
+<body class="min-h-screen overflow-x-hidden">
+    <!-- Gradient Background Decor -->
+    <div class="fixed top-0 left-0 w-full h-full -z-10 opacity-30 pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[120px]"></div>
+    </div>
+
+    <nav class="p-6 flex justify-between items-center max-w-[1440px] mx-auto border-b border-white/5">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-400 rounded-xl flex items-center justify-center font-black italic shadow-lg shadow-blue-500/20">TC</div>
+            <div class="text-xl font-black tracking-tighter">TEXT<span class="text-blue-500">CARD</span><span class="ml-2 text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-zinc-400 font-medium">PRO 2.0</span></div>
+        </div>
+        <div class="flex items-center gap-6">
+            <button onclick="document.getElementById('inputText').value = demoMD; updatePreview();" class="text-xs text-zinc-500 hover:text-white transition">导入示例</button>
+            <a href="https://github.com" class="text-zinc-500 hover:text-white transition"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.15 3.286.115.319.335.69.84.577C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a>
+        </div>
+    </nav>
+
+    <main class="max-w-[1440px] mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-100px)]">
+        
+        <!-- Left Sidebar: Controls -->
+        <aside class="lg:col-span-3 space-y-6 overflow-y-auto pr-2">
+            
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs uppercase tracking-widest text-zinc-500 font-bold">编辑内容 (Markdown)</h3>
+                    <span class="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">AUTO-SAVE</span>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl h-80">
+                    <textarea id="inputText" class="w-full h-full bg-transparent border-none focus:ring-0 text-sm font-mono leading-relaxed placeholder:text-zinc-700 resize-none outline-none" placeholder="# 输入标题...&#10;&#10;输入你的正文，支持 **Markdown** 语法。"></textarea>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h3 class="text-xs uppercase tracking-widest text-zinc-500 font-bold">精选大师模板</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div onclick="applyTemplate('editorial')" class="template-card active glass-panel p-3 rounded-xl border border-white/5" id="tpl-editorial">
+                        <div class="h-12 bg-white flex items-center justify-center font-black text-black text-xs rounded mb-2">BOLD</div>
+                        <div class="text-[10px] text-center font-bold">现代社论</div>
+                    </div>
+                    <div onclick="applyTemplate('vintage')" class="template-card glass-panel p-3 rounded-xl border border-white/5" id="tpl-vintage">
+                        <div class="h-12 bg-[#f4f1ea] flex items-center justify-center font-serif text-[#3d362d] text-xs rounded mb-2 border border-zinc-300">NEWS</div>
+                        <div class="text-[10px] text-center font-bold">复古报刊</div>
+                    </div>
+                    <div onclick="applyTemplate('swiss')" class="template-card glass-panel p-3 rounded-xl border border-white/5" id="tpl-swiss">
+                        <div class="h-12 bg-[#e23d28] flex items-center justify-center font-sans text-white text-xs rounded mb-2">SWISS</div>
+                        <div class="text-[10px] text-center font-bold">瑞士平面</div>
+                    </div>
+                    <div onclick="applyTemplate('elegant')" class="template-card glass-panel p-3 rounded-xl border border-white/5" id="tpl-elegant">
+                        <div class="h-12 bg-[#1a1c1e] flex items-center justify-center font-serif text-[#c5a059] text-xs rounded mb-2">DARK</div>
+                        <div class="text-[10px] text-center font-bold">典雅深邃</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4 pt-4">
+                <h3 class="text-xs uppercase tracking-widest text-zinc-500 font-bold">高级设置</h3>
+                <div class="glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-[10px]">
+                            <span class="text-zinc-400">页边距 (Padding)</span>
+                            <span id="paddingVal" class="text-blue-400 font-bold">60px</span>
+                        </div>
+                        <input type="range" id="paddingRange" min="20" max="120" value="60" class="w-full accent-blue-500">
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-[10px]">
+                            <span class="text-zinc-400">文字大小 (Font Size)</span>
+                            <span id="fontVal" class="text-blue-400 font-bold">18px</span>
+                        </div>
+                        <input type="range" id="fontRange" min="14" max="24" value="18" class="w-full accent-blue-500">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="showFooter" checked class="rounded bg-zinc-800 border-zinc-700 text-blue-600">
+                        <label for="showFooter" class="text-[10px] text-zinc-400 uppercase tracking-wider cursor-pointer">显示页脚水印</label>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center: Live Preview -->
+        <section class="lg:col-span-6 flex flex-col items-center overflow-y-auto">
+            <div class="text-[10px] uppercase tracking-[0.3em] text-zinc-500 mb-6 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                实时渲染引擎
+            </div>
+            
+            <!-- Export Wrapper (Background) -->
+            <div id="exportWrapper" class="p-16 bg-zinc-900 rounded-lg shadow-2xl transition-all duration-500">
+                <!-- Actual Card -->
+                <div id="exportCard" class="bg-white text-black card-shadow min-h-[500px] w-full max-w-[600px] transition-all duration-300 relative overflow-hidden flex flex-col">
+                    <!-- Template Decor (Cyberpunk) -->
+                    <div id="cyberDecor" class="hidden absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-pink-500 to-yellow-500"></div>
+                    
+                    <div class="flex-grow p-12" id="cardPadding">
+                        <div id="cardHeader" class="mb-8 opacity-0 transition-opacity">
+                            <div class="text-[10px] tracking-widest font-black uppercase text-blue-600">Thought Snippet</div>
+                            <div class="h-0.5 w-8 bg-blue-600 mt-1"></div>
+                        </div>
+                        
+                        <div id="mdOutput" class="md-content font-serif-cn text-lg break-words">
+                            <!-- MD Renders here -->
+                        </div>
+                    </div>
+
+                    <div id="cardFooter" class="px-12 pb-10 flex justify-between items-center opacity-30 mt-auto">
+                        <div class="flex items-center gap-2">
+                            <div class="w-4 h-4 bg-black rounded-sm flex items-center justify-center text-[8px] text-white font-bold">T</div>
+                            <div class="text-[8px] font-black tracking-tighter uppercase" id="footerBrand">TextCard Pro</div>
+                        </div>
+                        <div class="text-[8px] font-medium" id="currentDate"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar: Export & Actions -->
+        <aside class="lg:col-span-3 space-y-6">
+            <div class="glass-panel p-6 rounded-3xl space-y-6">
+                <div class="space-y-2">
+                    <h2 class="text-xl font-bold">完成了吗？</h2>
+                    <p class="text-xs text-zinc-500 leading-relaxed">我们已优化了 PNG 导出参数，适配 Twitter、小红书等社交媒体的高清显示标准。</p>
+                </div>
+
+                <div class="space-y-3">
+                    <button id="downloadBtn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-600/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                        <span>生成高清图片</span>
+                    </button>
+                    
+                    <button onclick="copyToClipboard()" class="w-full bg-white/5 border border-white/10 text-zinc-300 py-3 rounded-2xl text-sm font-medium hover:bg-white/10 transition-all">
+                        复制到剪贴板
+                    </button>
+                </div>
+
+                <div class="pt-4 border-t border-white/5 space-y-4">
+                    <h4 class="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">导出格式</h4>
+                    <div class="flex gap-2">
+                        <span class="px-3 py-1 bg-zinc-800 rounded-full text-[10px] text-zinc-400">PNG 2x</span>
+                        <span class="px-3 py-1 bg-zinc-800 rounded-full text-[10px] text-zinc-400">WebP 1x</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tip Card -->
+            <div class="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 p-6 rounded-3xl border border-white/10 animate-float">
+                <div class="text-indigo-300 text-xs font-bold mb-2 flex items-center gap-2">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    Pro Tip
+                </div>
+                <p class="text-xs text-indigo-100/70 leading-relaxed">使用 Markdown 语法中的 `> 引用` 可以为你的卡片增加极具质感的引用区域。</p>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const demoMD = `# TextCard Pro
+## 更加精美的排版引擎
+
+这就是你一直在寻找的 **长文转长图** 终极解决方案。
+
+### 为什么选择我们？
+- **Markdown 全力驱动**：支持所有的 MD 常用语法。
+- **极致美学**：每一套模板都由专业设计师调色。
+- **高清导出**：适配社交媒体的 2x 高清标准。
+
+> "在这个注意力稀缺的时代，排版本身就是一种表达。"
+
+---
+*Generated by TextCard Pro*`;
+
+        const inputText = document.getElementById('inputText');
+        const mdOutput = document.getElementById('mdOutput');
+        const exportCard = document.getElementById('exportCard');
+        const cardPadding = document.getElementById('cardPadding');
+        const exportWrapper = document.getElementById('exportWrapper');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const paddingRange = document.getElementById('paddingRange');
+        const fontRange = document.getElementById('fontRange');
+        const showFooter = document.getElementById('showFooter');
+
+        // Init
+        document.getElementById('currentDate').innerText = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+        inputText.value = demoMD;
+
+        // MD Options
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+
+        function updatePreview() {
+            const rawValue = inputText.value || '# 开始输入...';
+            mdOutput.innerHTML = marked.parse(rawValue);
+            
+            // Stats
+            document.getElementById('paddingVal').innerText = paddingRange.value + 'px';
+            document.getElementById('fontVal').innerText = fontRange.value + 'px';
+            
+            // Dynamic Styles
+            cardPadding.style.padding = paddingRange.value + 'px';
+            mdOutput.style.fontSize = fontRange.value + 'px';
+            document.getElementById('cardFooter').style.display = showFooter.checked ? 'flex' : 'none';
+        }
+
+        function applyTemplate(type) {
+            document.querySelectorAll('.template-card').forEach(el => el.classList.remove('active'));
+            document.getElementById('tpl-' + type).classList.add('active');
+            
+            const root = document.documentElement;
+            const cyberDecor = document.getElementById('cyberDecor');
+            const cardHeader = document.getElementById('cardHeader');
+            const footerBrand = document.getElementById('footerBrand');
+            
+            cyberDecor.classList.add('hidden');
+            cardHeader.classList.add('opacity-0');
+            exportCard.style.border = 'none';
+            exportCard.classList.remove('template-elegant-style');
+            exportWrapper.className = "p-16 bg-zinc-900 rounded-lg shadow-2xl transition-all duration-500";
+            
+            if (type === 'editorial') {
+                root.style.setProperty('--card-bg', '#ffffff');
+                root.style.setProperty('--card-text', '#000000');
+                root.style.setProperty('--card-accent', '#000000');
+                exportCard.style.backgroundColor = '#ffffff';
+                exportCard.style.color = '#000000';
+                exportCard.style.borderRadius = '0px';
+                exportWrapper.style.backgroundColor = '#111';
+                mdOutput.style.fontFamily = "'Inter', sans-serif";
+                mdOutput.style.fontWeight = "450";
+                footerBrand.innerText = "EDITORIAL / ISSUE 01";
+            } 
+            else if (type === 'vintage') {
+                root.style.setProperty('--card-bg', '#f4f1ea');
+                root.style.setProperty('--card-text', '#3d362d');
+                root.style.setProperty('--card-accent', '#7c6a53');
+                exportCard.style.backgroundColor = '#f4f1ea';
+                exportCard.style.color = '#3d362d';
+                exportCard.style.borderRadius = '2px';
+                exportCard.style.border = '1px solid #dcd7ca';
+                exportWrapper.style.backgroundColor = '#2c2a26';
+                mdOutput.style.fontFamily = "'Noto Serif SC', serif";
+                footerBrand.innerText = "VINTAGE CHRONICLE";
+            }
+            else if (type === 'swiss') {
+                root.style.setProperty('--card-bg', '#ffffff');
+                root.style.setProperty('--card-text', '#000000');
+                root.style.setProperty('--card-accent', '#e23d28');
+                exportCard.style.backgroundColor = '#ffffff';
+                exportCard.style.color = '#000000';
+                exportCard.style.borderRadius = '0px';
+                exportCard.style.borderLeft = '12px solid #e23d28';
+                exportWrapper.style.backgroundColor = '#000';
+                mdOutput.style.fontFamily = "'Inter', sans-serif";
+                footerBrand.innerText = "SWISS GRID SYSTEM";
+            }
+            else if (type === 'elegant') {
+                exportCard.classList.add('template-elegant-style');
+                root.style.setProperty('--card-bg', '#121416');
+                root.style.setProperty('--card-text', '#ffffff');
+                root.style.setProperty('--card-accent', '#d4af37');
+                exportCard.style.backgroundColor = '#121416';
+                exportCard.style.color = '#ffffff';
+                exportCard.style.borderRadius = '0px';
+                exportWrapper.style.backgroundColor = '#050505';
+                mdOutput.style.fontFamily = "'Noto Serif SC', serif";
+                mdOutput.style.fontWeight = "500";
+                mdOutput.style.letterSpacing = "0.02em";
+                footerBrand.innerText = "ELEGANT NIGHT | SERIES";
+                cyberDecor.classList.remove('hidden');
+                cyberDecor.style.background = '#d4af37';
+                cyberDecor.style.height = '2px';
+            }
+        }
+
+        // Listeners
+        inputText.addEventListener('input', updatePreview);
+        paddingRange.addEventListener('input', updatePreview);
+        fontRange.addEventListener('input', updatePreview);
+        showFooter.addEventListener('change', updatePreview);
+
+        downloadBtn.addEventListener('click', () => {
+            const btnSpan = downloadBtn.querySelector('span');
+            btnSpan.innerText = '正在生成...';
+            
+            htmlToImage.toPng(exportWrapper, { 
+                quality: 1, 
+                pixelRatio: 3.0,
+                backgroundColor: null,
+                style: {
+                    transform: 'scale(1)',
+                    transformOrigin: 'top left'
+                }
+            })
+            .then(function (dataUrl) {
+                const link = document.createElement('a');
+                link.download = `textcard-pro-${Date.now()}.png`;
+                link.href = dataUrl;
+                link.click();
+                btnSpan.innerText = '生成高清图片';
+            })
+            .catch(function (error) {
+                console.error('Export Error:', error);
+                btnSpan.innerText = '导出失败';
+            });
+        });
+
+        async function copyToClipboard() {
+            try {
+                const dataUrl = await htmlToImage.toPng(exportWrapper, { pixelRatio: 3.0 });
+                const response = await fetch(dataUrl);
+                const blob = await response.blob();
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]);
+                alert('已成功复制图片到剪贴板！');
+            } catch (err) {
+                alert('复制失败，请重试');
+            }
+        }
+
+        // Initial update
+        updatePreview();
+        applyTemplate('editorial');
+    </script>
+</body>
+</html>
